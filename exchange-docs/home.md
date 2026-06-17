@@ -1,0 +1,24 @@
+mvn clean deploy -DmuleDeploy \
+-Ddeploy.anypointBusinessGroupName=BG1-RSA-LEVEL1 \
+-Ddeploy.ch.target=Cloudhub-EU-West-1 \
+-Ddeploy.ch.vCores=0.1 \
+-Ddeploy.ch.replicas=1 \
+-Ddeploy.opsClientId=bb7bbc355f4041cbb7416ffe0fc8e39a \
+-Ddeploy.opsClientSecret=32D680f253334186a2181A831d21C7A8 \
+-Dconfig.encryptionkey="configsecret" \
+-Dconfig.env=DEV \
+-Ddeploy.env=DEV \
+-Danypoint.platform.gatekeeper=disabled \
+-Dbg.id=847916b2-61a8-475f-919b-35cfcddb88e4  \
+-Dhttp.host=0.0.0.0 \
+-Dhttp.port=8081 \
+-Danypoint.connected.app.client.id=bb7bbc355f4041cbb7416ffe0fc8e39a \
+-Danypoint.connected.app.client.secret=32D680f253334186a2181A831d21C7A8 \
+-Dapi.id=2775516 \
+-Dapi.version=v1 \
+-Dthreshold.cpu.percent=1 \
+-Dthreshold.memory.percent=1 \
+-Dthreshold.latency.ms=1000 \
+-Dthreshold.error.count=500  \
+-Ddashboard.business.groups=BG1-RSA-LEVEL1 \
+  -s /Users/rsaphou/.m2/settings-romaric-eu.xml

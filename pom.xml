@@ -2,16 +2,17 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>com.mulesoft.omni</groupId>
-	<artifactId>omni-monitor</artifactId>
+	<groupId>847916b2-61a8-475f-919b-35cfcddb88e4</groupId>
+	<artifactId>ago-omni-monitor</artifactId>
 	<version>1.0.0</version>
 	<packaging>mule-application</packaging>
 	<name>omni-monitor</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<app.runtime>4.6.0</app.runtime>
+		<app.runtime>4.12.0</app.runtime>
 		<mule.maven.plugin.version>4.1.0</mule.maven.plugin.version>
+		<deploy.application.name>ago-omni-monitor</deploy.application.name>
 	</properties>
 
 	<build>
@@ -24,21 +25,51 @@
 			<plugin>
 				<groupId>org.mule.tools.maven</groupId>
 				<artifactId>mule-maven-plugin</artifactId>
-				<version>${mule.maven.plugin.version}</version>
+				<version>4.1.0</version>
 				<extensions>true</extensions>
 				<configuration>
 					<cloudhub2Deployment>
-						<uri>https://anypoint.mulesoft.com</uri>
+						<uri>https://eu1.anypoint.mulesoft.com</uri>
 						<provider>MC</provider>
-						<environment>${deploy.env}</environment>
-						<target>${deploy.target}</target>
-						<applicationName>omni-monitor</applicationName>
+						<environment>DEV</environment>
+						<target>Cloudhub-EU-Central-1</target>
+						<applicationName>ago-omni-monitor</applicationName>
 						<replicas>1</replicas>
-						<vCores>0.1</vCores>
-						<connectedAppClientId>${connected.app.client.id}</connectedAppClientId>
-						<connectedAppClientSecret>${connected.app.client.secret}</connectedAppClientSecret>
+						<muleVersion>4.6.0</muleVersion> 
+						<connectedAppClientId>bb7bbc355f4041cbb7416ffe0fc8e39a</connectedAppClientId>
+                   		<connectedAppClientSecret>32D680f253334186a2181A831d21C7A8</connectedAppClientSecret>
 						<connectedAppGrantType>client_credentials</connectedAppGrantType>
-						<businessGroupId>${bg.id}</businessGroupId>
+						<businessGroupId>847916b2-61a8-475f-919b-35cfcddb88e4</businessGroupId>
+						 <deploymentTimeout>1200000</deploymentTimeout>
+                    	<replicas>1</replicas>
+                   		<vCores>0.1</vCores>
+                    	<businessGroup>BG1-RSA-LEVEL1</businessGroup>
+                    	<properties>
+		                        <!--  Put here any ENVIRONMENT VARIABLE required for the application -->
+		                        <!--  Standard Platform Environment variable - default in pom - can be overwritten -->
+		                        <anypoint.platform.base_uri>https://eu1.anypoint.mulesoft.com</anypoint.platform.base_uri>
+		                        <!-- API Manager connectivity - environment credentials - ONLY required for MuleSoft API Manager -->
+		                         <anypoint.platform.client_id>ed941ae5ef7342199b6e7e374ced9938</anypoint.platform.client_id> 
+		                         <anypoint.platform.client_secret>2c398eAd89d84f7DB683bb389d63CE68</anypoint.platform.client_secret>
+		                        <anypoint.platform.gatekeeper>strict</anypoint.platform.gatekeeper>
+		                        <!-- Custom Mule Project Global Variables        -->
+		                        <config.env>DEV</config.env>
+		                        <deploy.env>DEV</deploy.env>
+		                        <anypoint.ch.businessGroup>BG1-RSA-LEVEL1</anypoint.ch.businessGroup>
+		                        <api.id>2775516</api.id>                    
+		                  </properties>
+		                  <deploymentSettings>
+		                     	<lastMileSecurity>false</lastMileSecurity> -->
+		         				<forwardSslSession>false</forwardSslSession> -->
+		       					<generateDefaultPublicUrl>true</generateDefaultPublicUrl> -->
+		                        <http>
+		                        <!--   inbound -->
+		<!--                             <publicUrl>${deploy.ch.publicURL}</publicUrl> -->
+		<!--                             <forwardSslSession>true</forwardSslSession> -->
+		<!--                             <lastMileSecurity>true</lastMileSecurity> -->
+		                        <!-- /inbound-->
+		                        </http>
+		                    </deploymentSettings>
 					</cloudhub2Deployment>
 					<classifier>mule-application</classifier>
 				</configuration>
@@ -94,4 +125,13 @@
 			<url>https://repository.mulesoft.org/nexus/content/repositories/public/</url>
 		</pluginRepository>
 	</pluginRepositories>
+	
+	<distributionManagement>
+        <repository>
+            <id>anypoint-exchange-v3</id>
+            <name>anypoint-exchange-v3</name>
+            <url>https://maven.eu1.anypoint.mulesoft.com/api/v3/organizations/847916b2-61a8-475f-919b-35cfcddb88e4/maven</url>
+            <layout>default</layout>
+        </repository>
+    </distributionManagement>
 </project>
