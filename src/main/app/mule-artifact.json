@@ -1,0 +1,7 @@
+{
+  "minMuleVersion": "4.9.0",
+  "secureProperties": [
+    "anypoint.connected.app.client.id",
+    "anypoint.connected.app.client.secret"
+  ]
+}

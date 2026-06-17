@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway"
+       xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+  http://www.mulesoft.org/schema/mule/core
+  http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+  http://www.mulesoft.org/schema/mule/http
+  http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+  http://www.mulesoft.org/schema/mule/api-gateway
+  http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd">
+
+    <!-- =====================================================================
+         SUB-FLOW: Get Anypoint Access Token
+         Stores token in vars.anypointToken
+         ===================================================================== -->
+    <sub-flow name="sf-get-access-token">
+        <http:request method="POST" config-ref="Anypoint_Request_config"
+                      path="/accounts/api/v2/oauth2/token" doc:name="Get Access Token">
+            <http:body>#[output application/x-www-form-urlencoded
+---
+{
+    grant_type: "client_credentials",
+    client_id: p("anypoint.connected.app.client.id"),
+    client_secret: p("anypoint.connected.app.client.secret")
+}]</http:body>
+            <http:headers>#[{"Content-Type": "application/x-www-form-urlencoded"}]</http:headers>
+        </http:request>
+        <set-variable variableName="anypointToken"
+                      value="#[payload.access_token]"
+                      doc:name="Store Access Token" />
+    </sub-flow>
+
+    <!-- =====================================================================
+         SUB-FLOW: Resolve BG / Env / Gateway IDs from header names
+         Reads headers: bg, env, gtw-name
+         Stores: vars.bgId, vars.envId, vars.gtwId
+         ===================================================================== -->
+    <sub-flow name="sf-resolve-ids">
+
+        <!-- 1. Resolve Business Group ID by name -->
+        <http:request method="GET" config-ref="Anypoint_Request_config"
+                      path="/accounts/api/v2/organizations/847916b2-61a8-475f-919b-35cfcddb88e4" doc:name="List BG organizations">
+            <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
+        </http:request>
+        <set-variable variableName="bgId"
+                      doc:name="Extract BG ID"
+                      value='#["847916b2-61a8-475f-919b-35cfcddb88e4"]' />
+        <choice doc:name="BG found?">
+            <when expression="#[vars.bgId == null]">
+                <set-variable variableName="httpStatus" value="400" />
+                <set-payload value='#[output application/json --- {
+                    "error": "Business group not found",
+                    "detail": "No business group with name: " ++ (attributes.headers["bg"] default "")
+                }]' />
+                <raise-error type="APP:BG_NOT_FOUND" description="#[vars.bgId]" />
+            </when>
+        </choice>
+
+        <!-- 2. Resolve Environment ID by name within the BG -->
+        <http:request method="GET" config-ref="Anypoint_Request_config"
+                      path="#['/accounts/api/organizations/' ++ vars.bgId]"
+                      doc:name="List Environments">
+            <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
+        </http:request>
+        <logger level="INFO" doc:name="Logger" doc:id="9fcab043-63b0-46fd-87c3-f2d74d1ec18b" message="#[payload]"/>
+		<set-variable variableName="envId"
+                      doc:name="Extract Env ID"
+                      value="#[%dw 2.0&#10;output application/java&#10;---&#10;(payload.environments&#10;    filter ($.name == vars.envName))[0].id]" />
+        <choice doc:name="Env found?">
+            <when expression="#[vars.envId == null]">
+                <set-variable variableName="httpStatus" value="400" />
+                <set-payload value='#[output application/json --- {
+                    "error": "Environment not found",
+                    "detail": "No environment with name: " ++ (attributes.headers["env"] default "")
+                }]' />
+                <raise-error type="APP:ENV_NOT_FOUND" description="Environment not found" />
+            </when>
+        </choice>
+
+        <!-- 3. Resolve Gateway ID by name -->
+        <http:request method="GET" config-ref="Anypoint_Request_config"
+                      path="#['/gatewaymanager/api/v1/organizations/' ++ vars.bgId ++ '/environments/' ++ vars.envId ++ '/gateways']"
+                      doc:name="List Gateways">
+            <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
+        </http:request>
+        <logger level="INFO" doc:name="Logger" doc:id="a7989d85-6c7f-4546-b2eb-3e291ec00e07" message="#[payload]"/>
+		<set-variable variableName="gtwId"
+                      doc:name="Extract Gateway ID"
+                      value="#[%dw 2.0&#10;output application/java&#10;---&#10;(payload.content&#10;	filter ($.name == vars.gtwName)&#10;)[0].id]" />
+		<choice doc:name="Gateway found?">
+            <when expression="#[vars.gtwId == null]">
+                <set-variable variableName="httpStatus" value="400" />
+                <set-payload value='#[output application/json --- {
+                    "error": "Gateway not found",
+                    "detail": "No gateway with name: " ++ (attributes.headers["gtw-name"] default "")
+                }]' />
+                <raise-error type="APP:GTW_NOT_FOUND" description="Gateway not found" />
+            </when>
+        </choice>
+
+        <!-- Restore inbound headers context -->
+        <set-variable variableName="inboundHeaders" value="#[attributes.headers]" />
+
+    </sub-flow>
+
+</mule>

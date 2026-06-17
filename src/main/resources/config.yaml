@@ -1,0 +1,24 @@
+http:
+  port: "8081"
+  host: "0.0.0.0"
+
+anypoint:
+  base-uri: "https://eu1.anypoint.mulesoft.com"
+  auth-url: "https://eu1.anypoint.mulesoft.com/accounts/api/v2/oauth2/token"
+  connected-app:
+    client-id: "${anypoint.connected.app.client.id}"
+    client-secret: "${anypoint.connected.app.client.secret}"
+
+api:
+  id: "${api.id}"
+  version: "${api.version}"
+
+thresholds:
+  cpu-percent: "${threshold.cpu.percent:80}"
+  memory-percent: "${threshold.memory.percent:70}"
+  latency-ms: "${threshold.latency.ms:1000}"
+  error-count: "${threshold.error.count:500}"
+
+# Dashboard BG list: comma-separated business group names
+dashboard:
+  business-groups: "${dashboard.business.groups:}"

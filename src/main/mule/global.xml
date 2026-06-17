@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway"
+       xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+  http://www.mulesoft.org/schema/mule/core
+  http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+  http://www.mulesoft.org/schema/mule/http
+  http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+  http://www.mulesoft.org/schema/mule/api-gateway
+  http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd">
+
+    <!-- HTTP Listener config for API -->
+    <http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="3b29df33-dbe3-4fb6-9611-d43d7a051277">
+        <http:listener-connection host="${http.host}" port="${http.port}" />
+    </http:listener-config>
+
+    <!-- HTTP Request config to Anypoint Platform -->
+    <http:request-config name="Anypoint_Request_config" doc:name="Anypoint Request Config">
+        <http:request-connection protocol="HTTPS" host="eu1.anypoint.mulesoft.com" port="443" />
+    </http:request-config>
+
+    <!-- API Gateway Autodiscovery -->
+    <api-gateway:autodiscovery apiId="${api.id}" flowRef="omni-monitor-main" doc:name="Autodiscovery" />
+	<configuration-properties doc:name="Configuration properties" doc:id="a8b49805-83c7-46f2-9fdf-9ed24b993ef1" file="config.yaml" />
+	<configuration-properties doc:name="Configuration properties" doc:id="bc83ef65-b821-4be4-be3c-7cbe123cf852" file="application.properties" />
+
+
+</mule>

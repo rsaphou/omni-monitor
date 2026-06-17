@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway"
+       xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+       xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" 
+      xsi:schemaLocation="
+  http://www.mulesoft.org/schema/mule/core
+  http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+  http://www.mulesoft.org/schema/mule/http
+  http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+  http://www.mulesoft.org/schema/mule/api-gateway
+  http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd
+  http://www.mulesoft.org/schema/mule/ee/core 
+  http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ==================================================================
+         FLOW: GET /dashboard  — HTML dashboard
+         ================================================================== -->
+    <flow name="flow-dashboard">
+        <http:listener config-ref="HTTP_Listener_config" path="/dashboard" allowedMethods="GET" doc:name="Dashboard Listener">
+            <http:response statusCode="200">
+                <http:headers>#[{"Content-Type": "text/html; charset=UTF-8"}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="500">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[{"Content-Type": "text/plain"}]</http:headers>
+            </http:error-response>
+        </http:listener>
+
+        <!-- Get access token -->
+        <flow-ref name="sf-get-access-token" />
+
+        <!-- Load configured BG names from property (comma-separated) -->
+        <set-variable variableName="bgNames"
+                      value="#[p('dashboard.business.groups') splitBy ',' map trim($) filter ($ != '')]"
+                      doc:name="Parse BG names" />
+
+        <!-- For each BG name: resolve IDs, list gateways, gather metrics -->
+        <set-variable variableName="dashboardData" value="#[[]]" doc:name="Init dashboard data" />
+
+        <foreach collection="#[vars.bgNames]" doc:name="For each BG">
+            <set-variable variableName="currentBgName" value="#[payload]" />
+
+            <!-- Resolve BG ID -->
+            <http:request method="GET" config-ref="Anypoint_Request_config"
+                          path="/accounts/api/v2/organizations" doc:name="List orgs for BG">
+                <http:headers>#[{"Authorization": "Bearer " ++ vars.anypointToken}]</http:headers>
+            </http:request>
+            <set-variable variableName="currentBgId"
+                          value="#[((payload) filter ($.name == vars.currentBgName))[0].id default null]" />
+
+            <choice doc:name="BG resolved?">
+                <when expression="#[vars.currentBgId != null]">
+
+                    <!-- List environments -->
+                    <http:request method="GET" config-ref="Anypoint_Request_config"
+                                  path="#['/accounts/api/v2/organizations/' ++ vars.currentBgId ++ '/environments']"
+                                  doc:name="List environments">
+                        <http:headers>#[{"Authorization": "Bearer " ++ vars.anypointToken}]</http:headers>
+                    </http:request>
+                    <set-variable variableName="environments" value="#[payload.data default []]" />
+
+                    <set-variable variableName="bgEnvData" value="#[[]]" doc:name="Init env data" />
+
+                    <foreach collection="#[vars.environments]" doc:name="For each env">
+                        <set-variable variableName="currentEnv" value="#[payload]" />
+
+                        <!-- List gateways (type MANAGED only) in this env -->
+                        <http:request method="GET" config-ref="Anypoint_Request_config"
+                                      path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.currentBgId ++ '/environments/' ++ vars.currentEnv.id ++ '/gateways']"
+                                      doc:name="List gateways">
+                            <http:headers>#[{"Authorization": "Bearer " ++ vars.anypointToken}]</http:headers>
+                        </http:request>
+                        <set-variable variableName="gateways"
+                                      value="#[(payload.content default []) filter ($.'type' == 'MANAGED')]" />
+
+                        <set-variable variableName="envGwData" value="#[[]]" doc:name="Init gw data" />
+
+                        <!-- Time range: last 5 minutes -->
+                        <set-variable variableName="timeRange"
+                                      value="#[%dw 2.0 output application/java
+---
+{ endMs: now() as Number {unit: 'milliseconds'}, startMs: (now() - |PT5M|) as Number {unit: 'milliseconds'} }]" />
+
+                        <foreach collection="#[vars.gateways]" doc:name="For each gateway">
+                            <set-variable variableName="gw" value="#[payload]" />
+
+                            <!-- CPU -->
+                            <http:request method="GET" config-ref="Anypoint_Request_config"
+                                          path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.currentBgId ++ '/environments/' ++ vars.currentEnv.id ++ '/gateways/' ++ vars.gw.id ++ '/cpu/avg']"
+                                          doc:name="CPU avg">
+                                <http:headers>#[{"Authorization": "Bearer " ++ vars.anypointToken}]</http:headers>
+                                <http:query-params>#[{"start": vars.timeRange.startMs as String, "end": vars.timeRange.endMs as String, "duration": "PT5M"}]</http:query-params>
+                            </http:request>
+                            <set-variable variableName="cpuVal" value="#[payload.value default payload.avg default 0]" />
+
+                            <!-- Memory -->
+                            <http:request method="GET" config-ref="Anypoint_Request_config"
+                                          path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.currentBgId ++ '/environments/' ++ vars.currentEnv.id ++ '/gateways/' ++ vars.gw.id ++ '/mem/avg']"
+                                          doc:name="Mem avg">
+                                <http:headers>#[{"Authorization": "Bearer " ++ vars.anypointToken}]</http:headers>
+                                <http:query-params>#[{"start": vars.timeRange.startMs as String, "end": vars.timeRange.endMs as String, "duration": "PT5M"}]</http:query-params>
+                            </http:request>
+                            <set-variable variableName="memVal" value="#[payload.value default payload.avg default 0]" />
+
+                            <!-- Errors -->
+                            <http:request method="GET" config-ref="Anypoint_Request_config"
+                                          path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.currentBgId ++ '/environments/' ++ vars.currentEnv.id ++ '/gateways/' ++ vars.gw.id ++ '/errors/count']"
+                                          doc:name="Error count">
+                                <http:headers>#[{"Authorization": "Bearer " ++ vars.anypointToken}]</http:headers>
+                                <http:query-params>#[{"start": vars.timeRange.startMs as String, "end": vars.timeRange.endMs as String, "duration": "PT5M"}]</http:query-params>
+                            </http:request>
+                            <set-variable variableName="errVal" value="#[payload.count default payload.value default 0]" />
+
+                            <!-- Append gateway entry -->
+                            <set-variable variableName="envGwData"
+                                          value="#[vars.envGwData ++ [{
+                                              name:   vars.gw.name,
+                                              id:     vars.gw.id,
+                                              status: vars.gw.status default 'UNKNOWN',
+                                              cpu:    vars.cpuVal,
+                                              mem:    vars.memVal,
+                                              errors: vars.errVal
+                                          }]]" />
+                        </foreach>
+
+                        <!-- Append environment entry -->
+                        <set-variable variableName="bgEnvData"
+                                      value="#[vars.bgEnvData ++ [{
+                                          envName:  vars.currentEnv.name,
+                                          gateways: vars.envGwData
+                                      }]]" />
+                    </foreach>
+
+                    <!-- Append BG entry -->
+                    <set-variable variableName="dashboardData"
+                                  value="#[vars.dashboardData ++ [{
+                                      bgName:       vars.currentBgName,
+                                      bgId:         vars.currentBgId,
+                                      environments: vars.bgEnvData
+                                  }]]" />
+                </when>
+            </choice>
+        </foreach>
+
+        <!-- Build HTML into variable via Transform component -->
+        <ee:transform doc:name="Build HTML Dashboard">
+            <ee:variables>
+                <ee:set-variable variableName="htmlDashboard"><![CDATA[
+%dw 2.0
+output text/plain
+fun barClass(v: Number, warnAt: Number, critAt: Number) =
+    if (v >= critAt) "bar-crit"
+    else if (v >= warnAt) "bar-warn"
+    else "bar-ok"
+fun pctBar(v: Number, warnAt: Number, critAt: Number) =
+    '<div class="metric-cell"><div class="bar-wrap"><div class="bar-fill '
+    ++ barClass(v, warnAt, critAt)
+    ++ '" style="width:' ++ (v as String) ++ '%"></div></div><span>' ++ (v as String) ++ '%</span></div>'
+fun renderGateway(gw) =
+    do {
+        var cpuPct = gw.cpu  as Number default 0
+        var memPct = gw.mem  as Number default 0
+        var statusBadge = if (gw.status == "STARTED")
+                            '<span class="badge badge-started">STARTED</span>'
+                          else
+                            '<span class="badge badge-stopped">' ++ gw.status ++ '</span>'
+        ---
+        '<tr>
+          <td><strong>' ++ gw.name ++ '</strong></td>
+          <td>' ++ statusBadge ++ '</td>
+          <td>' ++ pctBar(cpuPct, 60, 80) ++ '</td>
+          <td>' ++ pctBar(memPct, 50, 70) ++ '</td>
+          <td>' ++ (gw.errors as String) ++ '</td>
+        </tr>'
+    }
+fun renderEnv(env) =
+    '<div class="env-section">
+      <div class="env-label">Environment: ' ++ env.envName ++ '</div>'
+    ++ (if (sizeOf(env.gateways) == 0)
+          '<div class="no-gw">No managed gateways found.</div>'
+        else
+          '<table>
+            <thead><tr>
+              <th>Gateway Name</th>
+              <th>Status</th>
+              <th>CPU (5 min avg)</th>
+              <th>Memory (5 min avg)</th>
+              <th>Errors (5 min)</th>
+            </tr></thead>
+            <tbody>'
+          ++ ((env.gateways map renderGateway($)) joinBy "")
+          ++ '</tbody></table>')
+    ++ '</div>'
+fun renderBg(bg) =
+    '<div class="bg-card">
+      <div class="bg-header"><span class="bg-icon">&#9635;</span> Business Group: ' ++ bg.bgName ++ '</div>'
+    ++ ((bg.environments map renderEnv($)) joinBy "")
+    ++ '</div>'
+---
+'<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Global Omni Gateway Status</title>
+<style>
+  :root {
+    --omni-blue:   #00a1e0;
+    --omni-dark:   #032d60;
+    --omni-mid:    #1b4f9b;
+    --omni-light:  #e8f4fd;
+    --omni-white:  #ffffff;
+    --omni-green:  #2ecc71;
+    --omni-red:    #e74c3c;
+    --omni-gray:   #f4f6f9;
+    --omni-border: #d0dce8;
+    --radius: 8px;
+    font-family: "Salesforce Sans", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--omni-gray); color: #1a1a1a; }
+
+  header {
+    background: linear-gradient(135deg, var(--omni-dark) 0%, var(--omni-mid) 100%);
+    color: var(--omni-white);
+    padding: 24px 40px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .logo { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo span { color: var(--omni-blue); }
+  .subtitle { font-size: 13px; opacity: .75; margin-top: 2px; }
+
+  .refresh-bar {
+    background: var(--omni-light);
+    border-bottom: 1px solid var(--omni-border);
+    padding: 8px 40px;
+    font-size: 12px; color: #555;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .refresh-btn {
+    background: var(--omni-blue); color: #fff; border: none;
+    padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;
+  }
+  .refresh-btn:hover { background: var(--omni-mid); }
+
+  main { padding: 32px 40px; }
+
+  .bg-card {
+    background: var(--omni-white);
+    border: 1px solid var(--omni-border);
+    border-radius: var(--radius);
+    margin-bottom: 28px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  }
+  .bg-header {
+    background: linear-gradient(90deg, var(--omni-dark) 0%, var(--omni-mid) 100%);
+    color: var(--omni-white);
+    padding: 14px 20px;
+    font-size: 16px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .bg-icon { font-size: 20px; }
+
+  .env-section { padding: 16px 20px 0; }
+  .env-label {
+    font-size: 12px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--omni-mid);
+    padding: 0 0 8px; border-bottom: 1px solid var(--omni-border);
+    margin-bottom: 10px;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  th {
+    background: var(--omni-light);
+    color: var(--omni-mid);
+    font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 8px 12px; text-align: left;
+    border-bottom: 2px solid var(--omni-border);
+  }
+  td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--omni-border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--omni-light); }
+
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  }
+  .badge-started { background: #d4edda; color: #155724; }
+  .badge-stopped { background: #f8d7da; color: #721c24; }
+
+  .metric-cell { display: flex; align-items: center; gap: 6px; }
+  .bar-wrap { width: 60px; height: 6px; background: #dde3ec; border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-ok   { background: var(--omni-green); }
+  .bar-warn { background: #f39c12; }
+  .bar-crit { background: var(--omni-red); }
+
+  .no-gw { color: #888; font-style: italic; font-size: 12px; padding: 10px 0 16px; }
+
+  footer {
+    text-align: center; padding: 20px;
+    font-size: 11px; color: #999;
+    border-top: 1px solid var(--omni-border);
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">&#9001; <span>Omni</span> Gateway Status</div>
+    <div class="subtitle">Global Omni Gateway Status &mdash; live metrics (last 5 min)</div>
+  </div>
+</header>
+<div class="refresh-bar">
+  <span id="ts">Loading...</span>
+  <button class="refresh-btn" onclick="location.reload()">&#8635; Refresh</button>
+</div>
+<main>'
+++ ((vars.dashboardData map renderBg($)) joinBy "")
+++ '</main>
+<footer>MuleSoft Omni Gateway Monitor &mdash; Powered by Anypoint Platform</footer>
+<script>document.getElementById("ts").textContent = "Last refreshed: " + new Date().toLocaleString();</script>
+</body>
+</html>'
+                ]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+
+        <!-- Write HTML variable to payload -->
+        <set-payload value="#[vars.htmlDashboard]" doc:name="Set HTML payload" />
+
+        <error-handler>
+            <on-error-continue type="ANY">
+                <set-payload value='#["&lt;html&gt;&lt;body&gt;&lt;h2&gt;Dashboard error&lt;/h2&gt;&lt;pre&gt;" ++ error.description ++ "&lt;/pre&gt;&lt;/body&gt;&lt;/html&gt;"]' />
+            </on-error-continue>
+        </error-handler>
+    </flow>
+
+</mule>

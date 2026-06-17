@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway"
+       xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+  http://www.mulesoft.org/schema/mule/core
+  http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+  http://www.mulesoft.org/schema/mule/http
+  http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+  http://www.mulesoft.org/schema/mule/api-gateway
+  http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd">
+
+    <!-- Main entry (referenced by autodiscovery) -->
+    <flow name="omni-monitor-main">
+        <http:listener config-ref="HTTP_Listener_config" path="/api/*" doc:name="API Listener" allowedMethods="GET">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:error-response>
+        </http:listener>
+		<logger level="INFO" doc:name="Logger" doc:id="2a21544a-5435-418c-a5f8-0d5f4dccc191" message='"Root listener"'/>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="5c4e0701-a43a-4009-bf85-e193e10fb256" >
+				<set-variable value="500" doc:name="Set Variable" doc:id="7ded38f8-f07b-4347-9e6c-0501cbd9ba8f" variableName="httpStatus"/>
+			</on-error-continue>
+		</error-handler>
+    </flow>
+
+    <!-- ==================================================================
+         FLOW: GET /api/status
+         ================================================================== -->
+    <flow name="flow-status">
+        <http:listener config-ref="HTTP_Listener_config" path="/api/status" allowedMethods="GET" doc:name="Status Listener">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 400]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:error-response>
+        </http:listener>
+
+        <set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200"/>
+        <set-variable variableName="bgName"    value="#[attributes.headers['bg'] default '']" doc:name="set-bg-name"/>
+        <set-variable variableName="envName"   value="#[attributes.headers['env'] default '']" doc:name="set-env-name"/>
+		<set-variable variableName="gtwName"   value="#[attributes.headers['gtw-name'] default '']" doc:name="set-gtw-name"/>
+
+        <!-- Get token -->
+        <flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
+        <!-- Resolve IDs -->
+        <flow-ref name="sf-resolve-ids" doc:name="get-ids"/>
+
+        <!-- Call gateway status endpoint -->
+        <http:request method="GET" config-ref="Anypoint_Request_config"
+                      path="#['/gatewaymanager/api/v1/organizations/' ++ vars.bgId ++ '/environments/' ++ vars.envId ++ '/gateways/' ++ vars.gtwId]"
+                      doc:name="Get Gateway Status">
+            <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
+        </http:request>
+        <logger level="INFO" doc:name="Logger" doc:id="c63e7c29-2680-4c73-b8f4-0c3f255ea451" message="#[payload]"/>
+		<set-variable variableName="gatewayStatus" value="#[payload.desiredStatus default 'UNKNOWN']" />
+
+        <choice doc:name="Status check">
+            <when expression='#[vars.gatewayStatus == "STARTED"]'>
+                <set-variable variableName="httpStatus" value="200" />
+                <set-payload doc:name="200 OK response"
+                             value='#[output application/json --- {
+                    "status": "OK",
+                    "gateway": {
+                        "id":   vars.gtwId,
+                        "name": vars.gtwName,
+                        "status": vars.gatewayStatus
+                    },
+                    "environment": vars.envName,
+                    "businessGroup": vars.bgName
+                }]' />
+            </when>
+            <otherwise>
+                <set-variable variableName="httpStatus" value="400" />
+                <set-payload doc:name="400 gateway not started"
+                             value='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	"status": "ERROR",&#10;	"error": "Gateway not started",&#10;	"detail": "Gateway"&#10;}]'/>
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-continue type="APP:ENV_NOT_FOUND, APP:GTW_NOT_FOUND">
+                <set-variable variableName="httpStatus" value="400" />
+            </on-error-continue>
+            <on-error-continue type="ANY">
+                <set-variable variableName="httpStatus" value="500" />
+                <set-payload value='#[output application/json --- {"error": "Unexpected error", "detail": error.description}]' />
+            </on-error-continue>
+        </error-handler>
+    </flow>
+
+    <!-- ==================================================================
+         FLOW: GET /api/cpu
+         ================================================================== -->
+    <flow name="flow-cpu">
+        <http:listener config-ref="HTTP_Listener_config" path="/api/cpu" allowedMethods="GET" doc:name="CPU Listener">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 400]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:error-response>
+        </http:listener>
+
+        <set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200"/>
+        <set-variable variableName="bgName"  value="#[attributes.headers['bg'] default '']" doc:name="set-bg-name"/>
+        <set-variable variableName="envName" value="#[attributes.headers['env'] default '']" doc:name="set-env-name"/>
+        <set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" doc:name="set-gtw-name"/>
+
+        <flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
+        <flow-ref name="sf-resolve-ids" doc:name="get-ids"/>
+
+        <!-- Compute 5-min time window -->
+        <set-variable variableName="timeRange"
+                      value="#[%dw 2.0 output application/java&#10;var vNow = now()&#10;---&#10;{&#10;    endMs:   now() as Number {unit: 'milliseconds'},&#10;    startMs: (now() - |PT5M|) as Number {unit: 'milliseconds'}&#10;}]" doc:name="set-time-range"/>
+
+        <http:request method="GET" config-ref="Anypoint_Request_config"
+                      path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.bgId ++ '/environments/' ++ vars.envId ++ '/gateways/' ++ vars.gtwId ++ '/cpu/avg']"
+                      doc:name="Get CPU avg">
+            <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
+            <http:query-params><![CDATA[#[{
+                "start":    vars.timeRange.startMs as String,
+                "end":      vars.timeRange.endMs as String,
+                "duration": "PT5M"
+            }]]]></http:query-params>
+        </http:request>
+
+        <logger level="INFO" doc:name="Logger" doc:id="ac27c66c-da8e-476f-b346-7f26ea1b8c90" message="#[%dw 2.0&#10;output application/json&#10;---&#10;payload]"/>
+		<set-variable variableName="cpuValue" value="#[payload.data[0].cpu default 0]" />
+        <set-variable variableName="cpuThreshold" value="#[p('threshold.cpu.percent') as Number default 80]" />
+
+        <choice doc:name="CPU threshold check">
+            <when expression="#[vars.cpuValue &lt;= vars.cpuThreshold]">
+                <set-variable variableName="httpStatus" value="200" />
+                <set-payload value='#[output application/json --- {
+                    "status": "OK",
+                    "metric": "cpu",
+                    "value": vars.cpuValue,
+                    "threshold": vars.cpuThreshold,
+                    "unit": "%",
+                    "gateway": vars.gtwName,
+                    "environment": vars.envName,
+                    "businessGroup": vars.bgName
+                }]' />
+            </when>
+            <otherwise>
+                <set-variable variableName="httpStatus" value="400" />
+                <set-payload value='#[output application/json --- {
+                    "status": "ERROR",
+                    "error": "CPU threshold exceeded",
+                    "detail": "Average CPU usage over the last 5 minutes is " ++ (vars.cpuValue as String) ++ "% which exceeds the threshold of " ++ (vars.cpuThreshold as String) ++ "%",
+                    "metric": "cpu",
+                    "value": vars.cpuValue,
+                    "threshold": vars.cpuThreshold,
+                    "unit": "%",
+                    "gateway": vars.gtwName
+                }]' />
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-continue type="APP:ENV_NOT_FOUND, APP:GTW_NOT_FOUND">
+                <set-variable variableName="httpStatus" value="400" />
+            </on-error-continue>
+            <on-error-continue type="ANY">
+                <set-variable variableName="httpStatus" value="500" />
+                <set-payload value='#[output application/json --- {"error": "Unexpected error", "detail": error.description}]' />
+            </on-error-continue>
+        </error-handler>
+    </flow>
+
+    <!-- ==================================================================
+         FLOW: GET /api/mem
+         ================================================================== -->
+    <flow name="flow-mem">
+        <http:listener config-ref="HTTP_Listener_config" path="/api/mem" allowedMethods="GET" doc:name="Memory Listener">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 400]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:error-response>
+        </http:listener>
+
+        <set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200"/>
+        <set-variable variableName="bgName"  value="#[attributes.headers['bg'] default '']" doc:name="set-bg-name"/>
+        <set-variable variableName="envName" value="#[attributes.headers['env'] default '']" doc:name="set-env-name"/>
+        <set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" doc:name="set-gtw-name"/>
+
+        <flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
+        <flow-ref name="sf-resolve-ids" doc:name="get-ids"/>
+
+        <set-variable variableName="timeRange"
+                      value="#[%dw 2.0 output application/java
+---
+{
+    endMs:   now() as Number {unit: 'milliseconds'},
+    startMs: (now() - |PT5M|) as Number {unit: 'milliseconds'}
+}]" />
+
+        <http:request method="GET" config-ref="Anypoint_Request_config"
+                      path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.bgId ++ '/environments/' ++ vars.envId ++ '/gateways/' ++ vars.gtwId ++ '/mem/avg']"
+                      doc:name="Get Memory avg">
+            <http:headers>#[{"Authorization": "Bearer " ++ vars.anypointToken}]</http:headers>
+            <http:query-params>#[{
+                "start":    vars.timeRange.startMs as String,
+                "end":      vars.timeRange.endMs as String,
+                "duration": "PT5M"
+            }]</http:query-params>
+        </http:request>
+
+        <set-variable variableName="memValue"     value="#[payload.value default payload.avg default 0]" />
+        <set-variable variableName="memThreshold" value="#[p('threshold.memory.percent') as Number default 70]" />
+
+        <choice doc:name="Memory threshold check">
+            <when expression="#[vars.memValue &lt;= vars.memThreshold]">
+                <set-variable variableName="httpStatus" value="200" />
+                <set-payload value='#[output application/json --- {
+                    "status": "OK",
+                    "metric": "memory",
+                    "value": vars.memValue,
+                    "threshold": vars.memThreshold,
+                    "unit": "%",
+                    "gateway": vars.gtwName,
+                    "environment": vars.envName,
+                    "businessGroup": vars.bgName
+                }]' />
+            </when>
+            <otherwise>
+                <set-variable variableName="httpStatus" value="400" />
+                <set-payload value='#[output application/json --- {
+                    "status": "ERROR",
+                    "error": "Memory threshold exceeded",
+                    "detail": "Average memory usage over the last 5 minutes is " ++ (vars.memValue as String) ++ "% which exceeds the threshold of " ++ (vars.memThreshold as String) ++ "%",
+                    "metric": "memory",
+                    "value": vars.memValue,
+                    "threshold": vars.memThreshold,
+                    "unit": "%",
+                    "gateway": vars.gtwName
+                }]' />
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-continue type="APP:ENV_NOT_FOUND, APP:GTW_NOT_FOUND">
+                <set-variable variableName="httpStatus" value="400" />
+            </on-error-continue>
+            <on-error-continue type="ANY">
+                <set-variable variableName="httpStatus" value="500" />
+                <set-payload value='#[output application/json --- {"error": "Unexpected error", "detail": error.description}]' />
+            </on-error-continue>
+        </error-handler>
+    </flow>
+
+    <!-- ==================================================================
+         FLOW: GET /api/latency
+         ================================================================== -->
+    <flow name="flow-latency">
+        <http:listener config-ref="HTTP_Listener_config" path="/api/latency" allowedMethods="GET" doc:name="Latency Listener">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 400]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:error-response>
+        </http:listener>
+
+        <set-variable variableName="httpStatus" value="200" />
+        <set-variable variableName="bgName"  value="#[attributes.headers['bg'] default '']" />
+        <set-variable variableName="envName" value="#[attributes.headers['env'] default '']" />
+        <set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" />
+
+        <flow-ref name="sf-get-access-token" />
+        <flow-ref name="sf-resolve-ids" />
+
+        <set-variable variableName="timeRange"
+                      value="#[%dw 2.0 output application/java
+---
+{
+    endMs:   now() as Number {unit: 'milliseconds'},
+    startMs: (now() - |PT5M|) as Number {unit: 'milliseconds'}
+}]" />
+
+        <http:request method="GET" config-ref="Anypoint_Request_config"
+                      path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.bgId ++ '/environments/' ++ vars.envId ++ '/gateways/' ++ vars.gtwId ++ '/latency/avg']"
+                      doc:name="Get Latency avg">
+            <http:headers>#[{"Authorization": "Bearer " ++ vars.anypointToken}]</http:headers>
+            <http:query-params>#[{
+                "start":    vars.timeRange.startMs as String,
+                "end":      vars.timeRange.endMs as String,
+                "duration": "PT5M"
+            }]</http:query-params>
+        </http:request>
+
+        <set-variable variableName="latencyValue"     value="#[payload.value default payload.avg default 0]" />
+        <set-variable variableName="latencyThreshold" value="#[p('threshold.latency.ms') as Number default 1000]" />
+
+        <choice doc:name="Latency threshold check">
+            <when expression="#[vars.latencyValue &lt;= vars.latencyThreshold]">
+                <set-variable variableName="httpStatus" value="200" />
+                <set-payload value='#[output application/json --- {
+                    "status": "OK",
+                    "metric": "latency",
+                    "value": vars.latencyValue,
+                    "threshold": vars.latencyThreshold,
+                    "unit": "ms",
+                    "gateway": vars.gtwName,
+                    "environment": vars.envName,
+                    "businessGroup": vars.bgName
+                }]' />
+            </when>
+            <otherwise>
+                <set-variable variableName="httpStatus" value="400" />
+                <set-payload value='#[output application/json --- {
+                    "status": "ERROR",
+                    "error": "Latency threshold exceeded",
+                    "detail": "Average response latency over the last 5 minutes is " ++ (vars.latencyValue as String) ++ "ms which exceeds the threshold of " ++ (vars.latencyThreshold as String) ++ "ms",
+                    "metric": "latency",
+                    "value": vars.latencyValue,
+                    "threshold": vars.latencyThreshold,
+                    "unit": "ms",
+                    "gateway": vars.gtwName
+                }]' />
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-continue type="APP:ENV_NOT_FOUND, APP:GTW_NOT_FOUND">
+                <set-variable variableName="httpStatus" value="400" />
+            </on-error-continue>
+            <on-error-continue type="ANY">
+                <set-variable variableName="httpStatus" value="500" />
+                <set-payload value='#[output application/json --- {"error": "Unexpected error", "detail": error.description}]' />
+            </on-error-continue>
+        </error-handler>
+    </flow>
+
+    <!-- ==================================================================
+         FLOW: GET /api/total-error
+         ================================================================== -->
+    <flow name="flow-errors">
+        <http:listener config-ref="HTTP_Listener_config" path="/api/total-error" allowedMethods="GET" doc:name="Errors Listener">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 400]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
+            </http:error-response>
+        </http:listener>
+
+        <set-variable variableName="httpStatus" value="200" />
+        <set-variable variableName="bgName"  value="#[attributes.headers['bg'] default '']" />
+        <set-variable variableName="envName" value="#[attributes.headers['env'] default '']" />
+        <set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" />
+
+        <flow-ref name="sf-get-access-token" />
+        <flow-ref name="sf-resolve-ids" />
+
+        <set-variable variableName="timeRange"
+                      value="#[%dw 2.0 output application/java
+---
+{
+    endMs:   now() as Number {unit: 'milliseconds'},
+    startMs: (now() - |PT5M|) as Number {unit: 'milliseconds'}
+}]" />
+
+        <http:request method="GET" config-ref="Anypoint_Request_config"
+                      path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.bgId ++ '/environments/' ++ vars.envId ++ '/gateways/' ++ vars.gtwId ++ '/errors/count']"
+                      doc:name="Get Error count">
+            <http:headers>#[{"Authorization": "Bearer " ++ vars.anypointToken}]</http:headers>
+            <http:query-params>#[{
+                "start":    vars.timeRange.startMs as String,
+                "end":      vars.timeRange.endMs as String,
+                "duration": "PT5M"
+            }]</http:query-params>
+        </http:request>
+
+        <set-variable variableName="errorCount"     value="#[payload.count default payload.value default 0]" />
+        <set-variable variableName="errorThreshold" value="#[p('threshold.error.count') as Number default 500]" />
+
+        <choice doc:name="Error threshold check">
+            <when expression="#[vars.errorCount &lt;= vars.errorThreshold]">
+                <set-variable variableName="httpStatus" value="200" />
+                <set-payload value='#[output application/json --- {
+                    "status": "OK",
+                    "metric": "total-error",
+                    "value": vars.errorCount,
+                    "threshold": vars.errorThreshold,
+                    "unit": "errors",
+                    "gateway": vars.gtwName,
+                    "environment": vars.envName,
+                    "businessGroup": vars.bgName
+                }]' />
+            </when>
+            <otherwise>
+                <set-variable variableName="httpStatus" value="400" />
+                <set-payload value='#[output application/json --- {
+                    "status": "ERROR",
+                    "error": "Error count threshold exceeded",
+                    "detail": "Total error count over the last 5 minutes is " ++ (vars.errorCount as String) ++ " which exceeds the threshold of " ++ (vars.errorThreshold as String),
+                    "metric": "total-error",
+                    "value": vars.errorCount,
+                    "threshold": vars.errorThreshold,
+                    "unit": "errors",
+                    "gateway": vars.gtwName
+                }]' />
+            </otherwise>
+        </choice>
+
+        <error-handler>
+            <on-error-continue type="APP:ENV_NOT_FOUND, APP:GTW_NOT_FOUND" enableNotifications="true" logException="true">
+                <set-variable variableName="httpStatus" value="400" />
+            </on-error-continue>
+            <on-error-continue type="ANY">
+                <set-variable variableName="httpStatus" value="500" />
+                <set-payload value='#[output application/json --- {"error": "Unexpected error", "detail": error.description}]' />
+            </on-error-continue>
+        </error-handler>
+    </flow>
+
+</mule>
