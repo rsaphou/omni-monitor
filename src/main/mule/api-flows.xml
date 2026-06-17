@@ -44,8 +44,7 @@
                 <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
             </http:error-response>
         </http:listener>
-
-        <set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200"/>
+		<set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200"/>
         <set-variable variableName="bgName"    value="#[attributes.headers['bg'] default '']" doc:name="set-bg-name"/>
         <set-variable variableName="envName"   value="#[attributes.headers['env'] default '']" doc:name="set-env-name"/>
 		<set-variable variableName="gtwName"   value="#[attributes.headers['gtw-name'] default '']" doc:name="set-gtw-name"/>
@@ -61,7 +60,7 @@
                       doc:name="Get Gateway Status">
             <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
         </http:request>
-        <logger level="INFO" doc:name="Logger" doc:id="c63e7c29-2680-4c73-b8f4-0c3f255ea451" message="#[payload]"/>
+        <logger level="DEBUG" doc:name="log-gtw-status-log" doc:id="c63e7c29-2680-4c73-b8f4-0c3f255ea451" message="#[payload]"/>
 		<set-variable variableName="gatewayStatus" value="#[payload.desiredStatus default 'UNKNOWN']" />
 
         <choice doc:name="Status check">
@@ -133,10 +132,8 @@
                 "duration": "PT5M"
             }]]]></http:query-params>
         </http:request>
-
-        <logger level="INFO" doc:name="Logger" doc:id="ac27c66c-da8e-476f-b346-7f26ea1b8c90" message="#[%dw 2.0&#10;output application/json&#10;---&#10;payload]"/>
-		<set-variable variableName="cpuValue" value="#[payload.data[0].cpu default 0]" />
-        <set-variable variableName="cpuThreshold" value="#[p('threshold.cpu.percent') as Number default 80]" />
+		<set-variable variableName="cpuValue" value="#[payload.data[0].cpu default 0]" doc:name="set-current-cpu-value"/>
+        <set-variable variableName="cpuThreshold" value='#["${thresholds.cpu-percent}" as Number default 80]' doc:name="set-threshold-cpu"/>
 
         <choice doc:name="CPU threshold check">
             <when expression="#[vars.cpuValue &lt;= vars.cpuThreshold]">
@@ -206,7 +203,7 @@
 {
     endMs:   now() as Number {unit: 'milliseconds'},
     startMs: (now() - |PT5M|) as Number {unit: 'milliseconds'}
-}]" />
+}]" doc:name="set-time-range"/>
 
         <http:request method="GET" config-ref="Anypoint_Request_config"
                       path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.bgId ++ '/environments/' ++ vars.envId ++ '/gateways/' ++ vars.gtwId ++ '/mem/avg']"
@@ -219,8 +216,8 @@
             }]</http:query-params>
         </http:request>
 
-        <set-variable variableName="memValue"     value="#[payload.value default payload.avg default 0]" />
-        <set-variable variableName="memThreshold" value="#[p('threshold.memory.percent') as Number default 70]" />
+        <set-variable variableName="memValue"     value="#[payload.data[0].memory default 0]" doc:name="setc-current-mem"/>
+        <set-variable variableName="memThreshold" value='#["${thresholds.memory-percent}" as Number default 70]' doc:name="set-threshold-mem"/>
 
         <choice doc:name="Memory threshold check">
             <when expression="#[vars.memValue &lt;= vars.memThreshold]">
@@ -303,8 +300,8 @@
             }]</http:query-params>
         </http:request>
 
-        <set-variable variableName="latencyValue"     value="#[payload.value default payload.avg default 0]" />
-        <set-variable variableName="latencyThreshold" value="#[p('threshold.latency.ms') as Number default 1000]" />
+        <set-variable variableName="latencyValue"     value="#[payload.data[0].latency default 60000]" doc:name="set-current-latency-value"/>
+        <set-variable variableName="latencyThreshold" value='#["${thresholds.latency-ms}" as Number default 60000]' doc:name="set-threshold-latency"/>
 
         <choice doc:name="Latency threshold check">
             <when expression="#[vars.latencyValue &lt;= vars.latencyThreshold]">
@@ -387,8 +384,8 @@
             }]</http:query-params>
         </http:request>
 
-        <set-variable variableName="errorCount"     value="#[payload.count default payload.value default 0]" />
-        <set-variable variableName="errorThreshold" value="#[p('threshold.error.count') as Number default 500]" />
+        <set-variable variableName="errorCount"     value="#[%dw 2.0&#10;output application/java&#10;&#10;var totalCount = sum(payload.data map (item) -&gt; item.count as Number) as Number default 0&#10;---&#10;totalCount]" doc:name="set-current-total-error"/>
+        <set-variable variableName="errorThreshold" value='#["${thresholds.error-count}" as Number default 500]' />
 
         <choice doc:name="Error threshold check">
             <when expression="#[vars.errorCount &lt;= vars.errorThreshold]">

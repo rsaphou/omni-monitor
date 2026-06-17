@@ -65,7 +65,6 @@
                       doc:name="List Environments">
             <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
         </http:request>
-        <logger level="INFO" doc:name="Logger" doc:id="9fcab043-63b0-46fd-87c3-f2d74d1ec18b" message="#[payload]"/>
 		<set-variable variableName="envId"
                       doc:name="Extract Env ID"
                       value="#[%dw 2.0&#10;output application/java&#10;---&#10;(payload.environments&#10;    filter ($.name == vars.envName))[0].id]" />
@@ -86,7 +85,6 @@
                       doc:name="List Gateways">
             <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
         </http:request>
-        <logger level="INFO" doc:name="Logger" doc:id="a7989d85-6c7f-4546-b2eb-3e291ec00e07" message="#[payload]"/>
 		<set-variable variableName="gtwId"
                       doc:name="Extract Gateway ID"
                       value="#[%dw 2.0&#10;output application/java&#10;---&#10;(payload.content&#10;	filter ($.name == vars.gtwName)&#10;)[0].id]" />

@@ -14,10 +14,10 @@ api:
   version: "${api.version}"
 
 thresholds:
-  cpu-percent: "${threshold.cpu.percent:80}"
-  memory-percent: "${threshold.memory.percent:70}"
-  latency-ms: "${threshold.latency.ms:1000}"
-  error-count: "${threshold.error.count:500}"
+  cpu-percent: "${threshold.cpu.percent}"
+  memory-percent: "${threshold.memory.percent}"
+  latency-ms: "${threshold.latency.ms}"
+  error-count: "${threshold.error.count}"
 
 # Dashboard BG list: comma-separated business group names
 dashboard:
