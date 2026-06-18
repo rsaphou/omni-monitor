@@ -1,0 +1,24 @@
+mvn clean deploy -DmuleDeploy \
+-Ddeploy.anypointBusinessGroupName=C4E-CMN \
+-Ddeploy.ch.target=Cloudhub-EU-West-1 \
+-Ddeploy.ch.vCores=0.1 \
+-Ddeploy.ch.replicas=1 \
+-Ddeploy.opsClientId=556d8f57e3904a92ae1cb8bcae628668 \
+-Ddeploy.opsClientSecret=6A41b25a79E54Aac8fE69a1A48c355d9 \
+-Dconfig.encryptionkey="configsecret" \
+-Dconfig.env=dev \
+-Ddeploy.env=dev \
+-Danypoint.platform.gatekeeper=disabled \
+-Dbg.id=f191d336-c989-44f4-904a-d30ce70960c6  \
+-Dhttp.host=0.0.0.0 \
+-Dhttp.port=8081 \
+-Danypoint.connected.app.client.id=556d8f57e3904a92ae1cb8bcae628668 \
+-Danypoint.connected.app.client.secret=6A41b25a79E54Aac8fE69a1A48c355d9 \
+-Dapi.id=20976434 \
+-Dapi.version=v1 \
+-Dthreshold.cpu.percent=1 \
+-Dthreshold.memory.percent=1 \
+-Dthreshold.latency.ms=1000 \
+-Dthreshold.error.count=500  \
+-Ddashboard.business.groups=C4E-CMN \
+  -s /Users/rsaphou/.m2/settings-romaric-axago.xml

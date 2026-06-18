@@ -19,7 +19,7 @@
 
     <!-- HTTP Request config to Anypoint Platform -->
     <http:request-config name="Anypoint_Request_config" doc:name="Anypoint Request Config">
-        <http:request-connection protocol="HTTPS" host="eu1.anypoint.mulesoft.com" port="443" />
+        <http:request-connection protocol="HTTPS" host="anypoint.mulesoft.com" port="443" />
     </http:request-config>
 
     <!-- API Gateway Autodiscovery -->

@@ -3,8 +3,8 @@ http:
   host: "0.0.0.0"
 
 anypoint:
-  base-uri: "https://eu1.anypoint.mulesoft.com"
-  auth-url: "https://eu1.anypoint.mulesoft.com/accounts/api/v2/oauth2/token"
+  base-uri: "https://anypoint.mulesoft.com"
+  auth-url: "https://anypoint.mulesoft.com/accounts/api/v2/oauth2/token"
   connected-app:
     client-id: "${anypoint.connected.app.client.id}"
     client-secret: "${anypoint.connected.app.client.secret}"

@@ -42,12 +42,12 @@
 
         <!-- 1. Resolve Business Group ID by name -->
         <http:request method="GET" config-ref="Anypoint_Request_config"
-                      path="/accounts/api/v2/organizations/847916b2-61a8-475f-919b-35cfcddb88e4" doc:name="List BG organizations">
+                      path="/accounts/api/v2/organizations/f191d336-c989-44f4-904a-d30ce70960c6" doc:name="List BG organizations">
             <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
         </http:request>
         <set-variable variableName="bgId"
                       doc:name="Extract BG ID"
-                      value='#["847916b2-61a8-475f-919b-35cfcddb88e4"]' />
+                      value='#["f191d336-c989-44f4-904a-d30ce70960c6"]' />
         <choice doc:name="BG found?">
             <when expression="#[vars.bgId == null]">
                 <set-variable variableName="httpStatus" value="400" />
