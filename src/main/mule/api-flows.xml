@@ -13,7 +13,18 @@
   http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd">
 
     <!-- Main entry (referenced by autodiscovery) -->
-    <flow name="omni-monitor-main">
+	<sub-flow name="set-context-variables" doc:id="1d35fc89-0fb0-4261-9659-2a4738baeba7" >
+		<set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200" />
+		<set-variable variableName="bgName" value="#[attributes.headers['bg-name'] default '']" doc:name="set-bg-name" />
+		<set-variable variableName="envName" value="#[attributes.headers['env-name'] default '']" doc:name="set-env-name" />
+		<set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" doc:name="set-gtw-name" />
+		<set-variable value="#[attributes.headers['bg-id'] default '']" doc:name="set-bg-id" doc:id="387a90ad-2f1d-4734-9caf-f3e549e4ca15" variableName="bgId"/>
+		<set-variable value="#[attributes.headers['threshold-cpu-percent'] default 80]" doc:name="set-threshold.cpu.percent" doc:id="0621b613-3f5e-4989-ba1e-d24a94b01a40" variableName="thresholdCpuPercent" />
+		<set-variable value="#[attributes.headers['threshold-memory-percent'] default 80]" doc:name="set-threshold.memory.percent" doc:id="241d80b9-2158-473e-b719-b516963dbb5f" variableName="thresholdMemoryPercent" />
+		<set-variable value="#[attributes.headers['threshold-latency-ms'] default 300000]" doc:name="set.threshold.latency.ms" doc:id="bdfd07e7-5d43-4e8c-ac43-c9bfce96596d" variableName="thresholdLatencyMs" />
+		<set-variable value="#[attributes.headers['threshold-error-count'] default 1000]" doc:name="set.threshold.error.count" doc:id="ec31297f-5e64-4084-b79c-8e5e8abac008" variableName="thresholdErrorCount" />
+	</sub-flow>
+	<flow name="omni-monitor-main">
         <http:listener config-ref="HTTP_Listener_config" path="/api/*" doc:name="API Listener" allowedMethods="GET">
             <http:response statusCode="#[vars.httpStatus default 200]">
                 <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
@@ -44,13 +55,10 @@
                 <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
             </http:error-response>
         </http:listener>
-		<set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200"/>
-        <set-variable variableName="bgName"    value="#[attributes.headers['bg'] default '']" doc:name="set-bg-name"/>
-        <set-variable variableName="envName"   value="#[attributes.headers['env'] default '']" doc:name="set-env-name"/>
-		<set-variable variableName="gtwName"   value="#[attributes.headers['gtw-name'] default '']" doc:name="set-gtw-name"/>
 
         <!-- Get token -->
-        <flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
+        <flow-ref doc:name="set-context-variables" doc:id="b690f112-09b8-43b1-a079-217712aee79e" name="set-context-variables"/>
+		<flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
         <!-- Resolve IDs -->
         <flow-ref name="sf-resolve-ids" doc:name="get-ids"/>
 
@@ -61,7 +69,7 @@
             <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
         </http:request>
         <logger level="DEBUG" doc:name="log-gtw-status-log" doc:id="c63e7c29-2680-4c73-b8f4-0c3f255ea451" message="#[payload]"/>
-		<set-variable variableName="gatewayStatus" value="#[payload.desiredStatus default 'UNKNOWN']" />
+		<set-variable variableName="gatewayStatus" value="#[payload.desiredStatus default 'UNKNOWN']" doc:name="get-current-status"/>
 
         <choice doc:name="Status check">
             <when expression='#[vars.gatewayStatus == "STARTED"]'>
@@ -109,13 +117,8 @@
                 <http:headers>#[{"Content-Type": "application/json"}]</http:headers>
             </http:error-response>
         </http:listener>
-
-        <set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200"/>
-        <set-variable variableName="bgName"  value="#[attributes.headers['bg'] default '']" doc:name="set-bg-name"/>
-        <set-variable variableName="envName" value="#[attributes.headers['env'] default '']" doc:name="set-env-name"/>
-        <set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" doc:name="set-gtw-name"/>
-
-        <flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
+		<flow-ref doc:name="set-context-variables" doc:id="f888d752-a20d-43c7-a2c7-2554ff925b51" name="set-context-variables" />
+		<flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
         <flow-ref name="sf-resolve-ids" doc:name="get-ids"/>
 
         <!-- Compute 5-min time window -->
@@ -133,7 +136,7 @@
             }]]]></http:query-params>
         </http:request>
 		<set-variable variableName="cpuValue" value="#[payload.data[0].cpu default 0]" doc:name="set-current-cpu-value"/>
-        <set-variable variableName="cpuThreshold" value='#["${thresholds.cpu-percent}" as Number default 80]' doc:name="set-threshold-cpu"/>
+        <set-variable variableName="cpuThreshold" value='#[vars.thresholdCpuPercent as Number default 80]' doc:name="set-threshold-cpu"/>
 
         <choice doc:name="CPU threshold check">
             <when expression="#[vars.cpuValue &lt;= vars.cpuThreshold]">
@@ -189,12 +192,8 @@
             </http:error-response>
         </http:listener>
 
-        <set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200"/>
-        <set-variable variableName="bgName"  value="#[attributes.headers['bg'] default '']" doc:name="set-bg-name"/>
-        <set-variable variableName="envName" value="#[attributes.headers['env'] default '']" doc:name="set-env-name"/>
-        <set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" doc:name="set-gtw-name"/>
-
-        <flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
+        <flow-ref doc:name="set-context-variables" doc:id="cfb89082-3464-4438-821f-a683a851ba2f" name="set-context-variables"/>
+		<flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
         <flow-ref name="sf-resolve-ids" doc:name="get-ids"/>
 
         <set-variable variableName="timeRange"
@@ -217,7 +216,7 @@
         </http:request>
 
         <set-variable variableName="memValue"     value="#[payload.data[0].memory default 0]" doc:name="setc-current-mem"/>
-        <set-variable variableName="memThreshold" value='#["${thresholds.memory-percent}" as Number default 70]' doc:name="set-threshold-mem"/>
+        <set-variable variableName="memThreshold" value='#[vars.thresholdMemoryPercent as Number default 70]' doc:name="set-threshold-mem"/>
 
         <choice doc:name="Memory threshold check">
             <when expression="#[vars.memValue &lt;= vars.memThreshold]">
@@ -248,7 +247,11 @@
             </otherwise>
         </choice>
 
-        <error-handler>
+        <set-variable variableName="httpStatus" value="200" doc:name="set-http-status-200" />
+		<set-variable variableName="bgName" value="#[attributes.headers['bg'] default '']" doc:name="set-bg-name" />
+		<set-variable variableName="envName" value="#[attributes.headers['env'] default '']" doc:name="set-env-name" />
+		<set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" doc:name="set-gtw-name" />
+		<error-handler>
             <on-error-continue type="APP:ENV_NOT_FOUND, APP:GTW_NOT_FOUND">
                 <set-variable variableName="httpStatus" value="400" />
             </on-error-continue>
@@ -273,13 +276,9 @@
             </http:error-response>
         </http:listener>
 
-        <set-variable variableName="httpStatus" value="200" />
-        <set-variable variableName="bgName"  value="#[attributes.headers['bg'] default '']" />
-        <set-variable variableName="envName" value="#[attributes.headers['env'] default '']" />
-        <set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" />
-
-        <flow-ref name="sf-get-access-token" />
-        <flow-ref name="sf-resolve-ids" />
+        <flow-ref doc:name="set-context-variables" doc:id="12f4ea03-51a0-4ba2-b931-7a88a9886eff" name="set-context-variables"/>
+		<flow-ref name="sf-get-access-token" doc:name="get-access-token"/>
+        <flow-ref name="sf-resolve-ids" doc:name="resolve-ids"/>
 
         <set-variable variableName="timeRange"
                       value="#[%dw 2.0 output application/java
@@ -287,7 +286,7 @@
 {
     endMs:   now() as Number {unit: 'milliseconds'},
     startMs: (now() - |PT5M|) as Number {unit: 'milliseconds'}
-}]" />
+}]" doc:name="set-thresholds"/>
 
         <http:request method="GET" config-ref="Anypoint_Request_config"
                       path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.bgId ++ '/environments/' ++ vars.envId ++ '/gateways/' ++ vars.gtwId ++ '/latency/avg']"
@@ -300,8 +299,9 @@
             }]</http:query-params>
         </http:request>
 
-        <set-variable variableName="latencyValue"     value="#[payload.data[0].latency default 60000]" doc:name="set-current-latency-value"/>
-        <set-variable variableName="latencyThreshold" value='#["${thresholds.latency-ms}" as Number default 60000]' doc:name="set-threshold-latency"/>
+        <logger level="INFO" doc:name="Logger" doc:id="d9dbb103-7c61-4d55-b821-411e125a82e3" message="#[payload]"/>
+		<set-variable variableName="latencyValue"     value="#[payload.data[0].latency default 1000]" doc:name="set-current-latency-value"/>
+        <set-variable variableName="latencyThreshold" value='#[vars.thresholdLatencyMs as Number default 300000]' doc:name="set-threshold-latency"/>
 
         <choice doc:name="Latency threshold check">
             <when expression="#[vars.latencyValue &lt;= vars.latencyThreshold]">
@@ -357,12 +357,9 @@
             </http:error-response>
         </http:listener>
 
-        <set-variable variableName="httpStatus" value="200" />
-        <set-variable variableName="bgName"  value="#[attributes.headers['bg'] default '']" />
-        <set-variable variableName="envName" value="#[attributes.headers['env'] default '']" />
-        <set-variable variableName="gtwName" value="#[attributes.headers['gtw-name'] default '']" />
-
-        <flow-ref name="sf-get-access-token" />
+        <flow-ref doc:name="set-context-variables" doc:id="e7006fa1-6be4-4038-b141-52321b539258" name="set-context-variables"/>
+		<flow-ref doc:name="set-context-variables" doc:id="40c96af0-1d2b-4ece-ab9e-3cd5f0aa596c" name="set-context-variables"/>
+		<flow-ref name="sf-get-access-token" />
         <flow-ref name="sf-resolve-ids" />
 
         <set-variable variableName="timeRange"
@@ -371,7 +368,7 @@
 {
     endMs:   now() as Number {unit: 'milliseconds'},
     startMs: (now() - |PT5M|) as Number {unit: 'milliseconds'}
-}]" />
+}]" doc:name="set-time-range"/>
 
         <http:request method="GET" config-ref="Anypoint_Request_config"
                       path="#['/gatewaymanager/xapi/v1/organizations/' ++ vars.bgId ++ '/environments/' ++ vars.envId ++ '/gateways/' ++ vars.gtwId ++ '/errors/count']"
@@ -385,7 +382,7 @@
         </http:request>
 
         <set-variable variableName="errorCount"     value="#[%dw 2.0&#10;output application/java&#10;&#10;var totalCount = sum(payload.data map (item) -&gt; item.count as Number) as Number default 0&#10;---&#10;totalCount]" doc:name="set-current-total-error"/>
-        <set-variable variableName="errorThreshold" value='#["${thresholds.error-count}" as Number default 500]' />
+        <set-variable variableName="errorThreshold" value='#[vars.thresholdErrorCount as Number default 500]' doc:name="set-error-threshold"/>
 
         <choice doc:name="Error threshold check">
             <when expression="#[vars.errorCount &lt;= vars.errorThreshold]">

@@ -41,23 +41,23 @@
     <sub-flow name="sf-resolve-ids">
 
         <!-- 1. Resolve Business Group ID by name -->
-        <http:request method="GET" config-ref="Anypoint_Request_config"
+        <!-- [STUDIO:"List BG organizations"]<http:request method="GET" config-ref="Anypoint_Request_config"
                       path="/accounts/api/v2/organizations/f191d336-c989-44f4-904a-d30ce70960c6" doc:name="List BG organizations">
-            <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}]]]></http:headers>
-        </http:request>
-        <set-variable variableName="bgId"
+            <http:headers><![CDATA[#[{"Authorization": "Bearer " ++ vars.anypointToken}&#93;&#93;&#93;></http:headers>
+        </http:request> [STUDIO] -->
+        <!-- [STUDIO:"Extract BG ID"]<set-variable variableName="bgId"
                       doc:name="Extract BG ID"
-                      value='#["f191d336-c989-44f4-904a-d30ce70960c6"]' />
-        <choice doc:name="BG found?">
-            <when expression="#[vars.bgId == null]">
+                      value='#["f191d336-c989-44f4-904a-d30ce70960c6"&#93;' /> [STUDIO] -->
+        <!-- [STUDIO:"BG found?"]<choice doc:name="BG found?">
+            <when expression="#[vars.bgId == null&#93;">
                 <set-variable variableName="httpStatus" value="400" />
-                <set-payload value='#[output application/json --- {
+                <set-payload value='#[output application/json &#45;&#45;- {
                     "error": "Business group not found",
-                    "detail": "No business group with name: " ++ (attributes.headers["bg"] default "")
-                }]' />
-                <raise-error type="APP:BG_NOT_FOUND" description="#[vars.bgId]" />
+                    "detail": "No business group with name: " ++ (attributes.headers["bg"&#93; default "")
+                }&#93;' />
+                <raise-error type="APP:BG_NOT_FOUND" description="#[vars.bgId&#93;" />
             </when>
-        </choice>
+        </choice> [STUDIO] -->
 
         <!-- 2. Resolve Environment ID by name within the BG -->
         <http:request method="GET" config-ref="Anypoint_Request_config"

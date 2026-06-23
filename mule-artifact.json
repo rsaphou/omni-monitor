@@ -1,17 +1,3 @@
 {
-  "minMuleVersion": "4.6.0",
-  "configs":
-  	[
-  		"global.xml", "api-flows.xml", "subflows.xml", "dashboard-flow.xml"
-  	],
-  	  "classLoaderModelLoaderDescriptor": {
-    "id": "mule",
-    "attributes": {
-      "exportedResources": []
-    }
-  },
-  "bundleDescriptorLoader": {
-    "id": "mule",
-    "attributes": {}
-  }
+    "minMuleVersion": "4.6.0"
 }

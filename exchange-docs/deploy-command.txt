@@ -22,3 +22,21 @@ mvn clean deploy -DmuleDeploy \
 -Dthreshold.error.count=500  \
 -Ddashboard.business.groups=C4E-CMN \
   -s /Users/rsaphou/.m2/settings-romaric-axago.xml
+
+#config for AXA C4E  
+-Dhttp.host=0.0.0.0
+-Dhttp.port=8081
+-Danypoint.connected.app.client.id=556d8f57e3904a92ae1cb8bcae628668
+-Danypoint.connected.app.client.secret=6A41b25a79E54Aac8fE69a1A48c355d9
+-Dapi.id=20976434
+-Dapi.version=v1
+-Ddashboard.business.groups=C4E-CMN
+
+#config for RSA EU 
+-Dhttp.host=0.0.0.0
+-Dhttp.port=8081
+-Danypoint.connected.app.client.id=bb7bbc355f4041cbb7416ffe0fc8e39a
+-Danypoint.connected.app.client.secret=32D680f253334186a2181A831d21C7A8
+-Dapi.id=2775516
+-Dapi.version=v1
+-Ddashboard.business.groups=BG1-RSA-LEVEL1

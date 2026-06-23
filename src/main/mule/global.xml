@@ -19,13 +19,12 @@
 
     <!-- HTTP Request config to Anypoint Platform -->
     <http:request-config name="Anypoint_Request_config" doc:name="Anypoint Request Config">
-        <http:request-connection protocol="HTTPS" host="anypoint.mulesoft.com" port="443" />
+        <http:request-connection protocol="HTTPS" host="${anypoint.base-uri}" port="443" />
     </http:request-config>
 
     <!-- API Gateway Autodiscovery -->
     <api-gateway:autodiscovery apiId="${api.id}" flowRef="omni-monitor-main" doc:name="Autodiscovery" />
 	<configuration-properties doc:name="Configuration properties" doc:id="a8b49805-83c7-46f2-9fdf-9ed24b993ef1" file="config.yaml" />
-	<configuration-properties doc:name="Configuration properties" doc:id="bc83ef65-b821-4be4-be3c-7cbe123cf852" file="application.properties" />
-
+	
 
 </mule>
